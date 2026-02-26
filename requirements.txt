@@ -13,3 +13,4 @@ Jinja2>=3.1.2
 
 # Optional: testing framework
 pytest>=8.2.0
+pytest-cov>=5.0.0
