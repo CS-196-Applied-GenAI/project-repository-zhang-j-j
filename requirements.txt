@@ -11,6 +11,9 @@ seaborn>=0.12.2
 # HTML templating
 Jinja2>=3.1.2
 
+# Parquet support
+pyarrow>=14.0.0
+
 # Optional: testing framework
 pytest>=8.2.0
 pytest-cov>=5.0.0
