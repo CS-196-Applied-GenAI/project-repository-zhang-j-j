@@ -65,6 +65,25 @@ report.generate_report('output/report.html')
 
 ---
 
+## Running the Web App Wrapper
+
+```bash
+# from the project root
+python -m flask --app webapp.app:create_app run --debug
+```
+
+If PowerShell says `flask` is not recognized, this `python -m flask ...` form is the recommended command.
+
+Then open `http://127.0.0.1:5000` in your browser.
+
+The web flow is:
+- Upload a CSV/Parquet file
+- Configure analysis options
+- Start analysis and poll job status
+- Preview the report inline and download `report.html`
+
+---
+
 ## Configuration
 
 All options can be passed as keyword arguments to `EDAReport.__init__`:
