@@ -1,18 +1,29 @@
 """
-Example usage of QuickEDA for exploratory data analysis.
+Example usage of QuickEDA for exploratory data analysis and HTML report generation.
 
 This script demonstrates how to use the EDAReport class to analyze
-any CSV dataset with command-line arguments or interactive prompts.
+any CSV dataset with command-line arguments or interactive prompts,
+and generate a comprehensive self-contained HTML report.
 
 Usage:
-    python analyze_dataset.py [file_path] [--target TARGET] [--problem-type TYPE]
+    python analyze_dataset.py [file_path] [--target TARGET] [--problem-type TYPE] [--output REPORT.html]
     
     If file_path is not provided, you will be prompted to enter it.
 
-Examples:
-    python analyze_dataset.py creditcard.csv --target Class --problem-type classification
-    python analyze_dataset.py diabetes.csv --target Outcome
-    python analyze_dataset.py  # Will prompt for inputs
+Examples (with report generation):
+    python analyze_dataset.py creditcard.csv --target Class --problem-type classification \\
+        --output reports/creditcard_report.html
+    
+    python analyze_dataset.py diabetes.csv --target Outcome --output reports/diabetes_report.html
+    
+    python analyze_dataset.py data.csv --output analysis.html
+    
+    # Interactive mode (with prompts)
+    python analyze_dataset.py
+    
+Output:
+    - Console display with detailed analysis results (Phases 1-4)
+    - HTML report with embedded plots, metrics, and insights (Phase 5)
 """
 
 import sys
@@ -72,6 +83,13 @@ Examples:
         type=int,
         default=10,
         help='Number of top features to highlight (default: 10)'
+    )
+    
+    parser.add_argument(
+        '--output',
+        '-o',
+        help='Path to save the HTML report (optional)',
+        default=None
     )
     
     return parser.parse_args()
@@ -149,6 +167,30 @@ def prompt_for_problem_type():
     return None
 
 
+def prompt_for_report_output():
+    """Prompt user for HTML report output path."""
+    print()
+    print("-" * 80)
+    print("HTML Report Generation (Interactive Option)")
+    print("-" * 80)
+    print("You can generate a self-contained HTML report summarizing the analysis.")
+    print("Enter a file path to save the report, or press Enter to skip.")
+    while True:
+        output_path = input("Report output path (e.g. reports/my_report.html): ").strip()
+        if not output_path:
+            print("No report will be generated.")
+            return None
+        output_abs = os.path.abspath(output_path)
+        output_dir = os.path.dirname(output_abs)
+        if output_dir and not os.path.exists(output_dir):
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+            except Exception as e:
+                print(f"ERROR creating directory: {e}")
+                continue
+        return output_abs
+
+
 def main():
     """Run EDA analysis on the specified dataset."""
     
@@ -216,7 +258,7 @@ def main():
         num_top_features=args.top_features
     )
     
-    print(f"✓ Data loaded successfully!")
+    print(f"[OK] Data loaded successfully!")
     print(f"  - Dataset shape: {report.df.shape}")
     print(f"  - Target column: {report.target if report.target else 'None (unsupervised)'}")
     print(f"  - Problem type: {report.problem_type if report.problem_type else 'Not specified'}")
@@ -227,7 +269,7 @@ def main():
     # Run data analysis (Phase 3)
     print("Step 2: Running data analysis...")
     report.analyze_data()
-    print("✓ Analysis complete!")
+    print("[OK] Analysis complete!")
     print()
     
     # Display missing data analysis results
@@ -241,7 +283,7 @@ def main():
             print(f"    - Missing percentage: {info['percentage']:.2%}")
             print(f"    - Suggested handling: {info['suggested_handling']}")
     else:
-        print("  ✓ No missing values detected!")
+        print("  [OK] No missing values detected!")
     print()
     
     # Display numeric feature statistics
@@ -268,7 +310,7 @@ def main():
                 iqr_outliers = outlier_info['iqr_method']['count']
                 sigma_outliers = outlier_info['sigma_method']['count']
                 print(f"    - Outliers (IQR): {iqr_outliers} ({outlier_info['iqr_method']['percentage']:.2%})")
-                print(f"    - Outliers (±3σ): {sigma_outliers} ({outlier_info['sigma_method']['percentage']:.2%})")
+                print(f"    - Outliers (+/-3 sigma): {sigma_outliers} ({outlier_info['sigma_method']['percentage']:.2%})")
             print()
     
     # Display categorical feature analysis
@@ -305,14 +347,14 @@ def main():
     
     # High predictor-predictor correlations
     if report.high_correlations:
-        print(f"High predictor-predictor correlations (|r| > 0.7):")
+        print(f"High predictor-predictor correlations (correlation > 0.7):")
         print(f"  Found {len(report.high_correlations)} pairs")
         for i, (feat1, feat2, corr) in enumerate(report.high_correlations[:5], 1):
-            print(f"  {i}. {feat1} <-> {feat2}: {corr:.4f}")
+            print(f"  {i}. {feat1} <--> {feat2}: {corr:.4f}")
         if len(report.high_correlations) > 5:
             print(f"  ... and {len(report.high_correlations) - 5} more pairs")
     else:
-        print("  No high correlations detected (all |r| ≤ 0.7)")
+        print("  No high correlations detected (all |r| <= 0.7)")
     print()
     
     # Target distribution check (moved before Phase 4)
@@ -333,7 +375,7 @@ def main():
         
         try:
             report.train_baseline_models()
-            print("✓ Model training complete!")
+            print("[OK] Model training complete!")
             print()
             
             # Display model metrics
@@ -437,10 +479,44 @@ def main():
         print("=" * 80)
         print()
     
+    # Phase 5: Generate HTML Report
+    html_output_path = None
+    output_path = args.output
+    # Prompt for report output if not set and running interactively
+    if output_path is None:
+        output_path = prompt_for_report_output()
+    if output_path:
+        print("=" * 80)
+        print("Step 4: Generating HTML Report (Phase 5)")
+        print("=" * 80)
+        print()
+        try:
+            # Resolve and create output path
+            output_abs = os.path.abspath(output_path)
+            output_dir = os.path.dirname(output_abs)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
+            # Generate report
+            report.generate_report(output_abs)
+            html_output_path = output_abs
+            # Display report info
+            file_size = os.path.getsize(output_abs)
+            print(f"[OK] HTML report generated successfully!")
+            print(f"  - Location: {output_abs}")
+            print(f"  - File size: {file_size:,} bytes")
+            print(f"  - Includes: key takeaways, data summary, feature distributions,")
+            print(f"              correlations, baseline model performance, appendix")
+            print()
+        except Exception as e:
+            print(f"ERROR generating report: {e}")
+            import traceback
+            traceback.print_exc()
+        print()
+    
     print("=" * 80)
     print("Analysis Summary")
     print("=" * 80)
-    print(f"Dataset: {report.df.shape[0]} rows × {report.df.shape[1]} columns")
+    print(f"Dataset: {report.df.shape[0]} rows x {report.df.shape[1]} columns")
     if report.target and report.problem_type:
         print(f"Target: {report.target} ({report.problem_type})")
         print(f"Models trained: {'Yes' if report.models else 'No'}")
@@ -452,6 +528,8 @@ def main():
     print(f"Numeric features analyzed: {len(report.numeric_statistics)}")
     print(f"Categorical features analyzed: {len(report.categorical_summary)}")
     print(f"High correlations found: {len(report.high_correlations)}")
+    if html_output_path:
+        print(f"HTML report saved to: {html_output_path}")
     print()
     
     # Check target distribution
@@ -463,7 +541,7 @@ def main():
             print(f"  {val}: {count} ({pct:.2f}%)")
         print()
     print("=" * 80)
-    print("Analysis complete! Phase 3 & Phase 4 implementation verified.")
+    print("Analysis complete! Phases 1-5 implementation verified.")
     print("=" * 80)
 
 

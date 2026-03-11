@@ -128,12 +128,14 @@ class EDAReport:
         """
         if isinstance(data, pd.DataFrame):
             logger.info("Data loaded from DataFrame")
+            self._source_path: Optional[str] = None
             return data.copy()
         
         elif isinstance(data, str):
             if not os.path.exists(data):
                 raise ValueError(f"File path does not exist: {data}")
             
+            self._source_path = data
             file_ext = os.path.splitext(data)[1].lower()
             
             if file_ext == '.csv':
@@ -805,12 +807,217 @@ class EDAReport:
     def generate_report(self, output_path: str) -> None:
         """
         Generate the HTML report with textual summaries and key static plots.
-        
+
+        Automatically calls analyze_data() if it has not yet been run.
+
         Parameters
         ----------
         output_path : str
-            Path to save the HTML report
+            File path where the HTML report will be saved (directories created
+            automatically).
         """
+        import datetime
+        import jinja2
+        from . import plots as plot_module
+        from . import utils
+        from . import __version__ as quickeda_version
+
         logger.info(f"Generating report to {output_path}...")
-        # TODO: Implement generate_report
-        pass
+
+        # Auto-run analysis if not done yet
+        if not self.numeric_statistics and not self.categorical_summary:
+            logger.info("Auto-running analyze_data() before generating report...")
+            self.analyze_data()
+
+        # ── Library versions (Step 18) ──────────────────────────────────────
+        library_versions = utils.get_library_versions()
+
+        # ── Key takeaways (Step 17) ─────────────────────────────────────────
+        takeaways = utils.generate_key_takeaways(self)
+
+        # ── Plots ────────────────────────────────────────────────────────────
+        # Select the most informative numeric columns for distribution plots:
+        # prefer those with highest absolute target correlation, else all numeric.
+        if self.target_correlations:
+            ordered_numeric = [
+                c for c in self.target_correlations.keys()
+                if c in self.numeric_columns
+            ] + [c for c in self.numeric_columns if c not in self.target_correlations]
+        else:
+            ordered_numeric = list(self.numeric_columns)
+
+        distribution_plots: dict = {}
+        if ordered_numeric:
+            distribution_plots = plot_module.generate_distribution_plots(
+                self.df, ordered_numeric, top_n=self.num_top_features
+            )
+
+        categorical_plots: dict = {}
+        if self.categorical_summary:
+            categorical_plots = plot_module.generate_categorical_plots(
+                self.df, self.categorical_summary, top_n=5
+            )
+
+        correlation_heatmap = ''
+        if not self.feature_correlations.empty:
+            correlation_heatmap = plot_module.generate_correlation_heatmap(
+                self.feature_correlations, top_n=20
+            )
+
+        target_corr_plot = ''
+        if self.target_correlations and self.target:
+            target_corr_plot = plot_module.generate_target_correlation_plot(
+                self.target_correlations, self.target, top_n=self.num_top_features
+            )
+
+        linear_fi_plot = ''
+        tree_fi_plot = ''
+        linear_model_name = (
+            'Logistic Regression' if self.problem_type == 'classification'
+            else 'Linear Regression'
+        )
+        tree_model_name = (
+            'Random Forest Classifier' if self.problem_type == 'classification'
+            else 'Random Forest Regressor'
+        )
+        if 'linear_feature_importance' in self.models:
+            linear_fi_plot = plot_module.generate_feature_importance_plot(
+                self.models['linear_feature_importance'], linear_model_name, top_n=15
+            )
+        if 'tree_feature_importance' in self.models:
+            tree_fi_plot = plot_module.generate_feature_importance_plot(
+                self.models['tree_feature_importance'], tree_model_name, top_n=15
+            )
+
+        # ── Build template context ────────────────────────────────────────────
+        def _fmt(val: float) -> str:
+            """Format a float value concisely for table display."""
+            if val == 0:
+                return '0'
+            if abs(val) >= 1e4 or (abs(val) < 1e-3 and val != 0):
+                return f'{val:.4g}'
+            return f'{val:.4g}'
+
+        missing_summary_rows = [
+            {
+                'column': col,
+                'count': info['count'],
+                'count_fmt': f"{info['count']:,}",
+                'percentage': info['percentage'],
+                'pct_str': f"{info['percentage']:.1%}",
+                'suggested_handling': info['suggested_handling'],
+            }
+            for col, info in self.missing_values_summary.items()
+        ]
+
+        numeric_stats_rows = [
+            {
+                'feature': feat,
+                'mean_str': _fmt(stats['mean']),
+                'median_str': _fmt(stats['median']),
+                'std_str': _fmt(stats['std']),
+                'min_str': _fmt(stats['min']),
+                'max_str': _fmt(stats['max']),
+                'outliers_iqr': self.outliers_summary.get(feat, {}).get(
+                    'iqr_method', {}).get('count', 0),
+                'outliers_iqr_fmt': f"{self.outliers_summary.get(feat, {}).get('iqr_method', {}).get('count', 0):,}",
+                'outliers_iqr_pct': f"{self.outliers_summary.get(feat, {}).get('iqr_method', {}).get('percentage', 0):.1%}",
+            }
+            for feat, stats in self.numeric_statistics.items()
+        ]
+
+        categorical_stats_rows = []
+        for col, info in self.categorical_summary.items():
+            top_val = info.get('top_category', {})
+            top_cat = list(top_val.keys())[0] if top_val else '—'
+            top_cnt = list(top_val.values())[0] if top_val else 0
+            categorical_stats_rows.append({
+                'feature': col,
+                'unique_count': info.get('unique_count', 0),
+                'top_category': str(top_cat),
+                'top_count_fmt': f"{top_cnt:,}",
+                'rare_category_count': info.get('rare_category_count', 0),
+            })
+
+        target_corr_rows = [
+            {
+                'feature': feat,
+                'corr_str': f'{corr:+.4f}',
+                'abs_corr': abs(corr),
+            }
+            for feat, corr in self.target_correlations.items()
+        ]
+
+        high_corr_rows = [
+            {
+                'feature1': f1,
+                'feature2': f2,
+                'corr_str': f'{corr:+.4f}',
+            }
+            for f1, f2, corr in self.high_correlations
+        ]
+
+        train_pct = f'{self.train_test_split_ratio:.0%}'
+        test_pct = f'{1 - self.train_test_split_ratio:.0%}'
+
+        context = {
+            # Metadata
+            'dataset_name': (
+                os.path.basename(self._source_path)
+                if hasattr(self, '_source_path') and self._source_path
+                else 'Dataset'
+            ),
+            'generated_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'n_rows_fmt': f'{len(self.df):,}',
+            'n_cols': len(self.df.columns),
+            'target': self.target,
+            'problem_type': self.problem_type,
+            'numeric_count': len(self.numeric_columns),
+            'categorical_count': len(self.categorical_columns),
+            # Takeaways
+            'insights': takeaways['insights'],
+            'warnings': takeaways['warnings'],
+            # Data Summary
+            'has_missing': bool(self.missing_values_summary),
+            'missing_summary': missing_summary_rows,
+            'numeric_stats': numeric_stats_rows,
+            'categorical_stats': categorical_stats_rows,
+            # Plots
+            'distribution_plots': distribution_plots,
+            'categorical_plots': categorical_plots,
+            # Relationships
+            'target_corr_list': target_corr_rows,
+            'target_corr_plot': target_corr_plot,
+            'high_corr_list': high_corr_rows,
+            'correlation_heatmap': correlation_heatmap,
+            # Models
+            'has_models': bool(self.metrics),
+            'metrics': self.metrics,
+            'linear_fi_plot': linear_fi_plot,
+            'tree_fi_plot': tree_fi_plot,
+            # Appendix
+            'random_seed': self.random_seed,
+            'train_split_pct': train_pct,
+            'test_split_pct': test_pct,
+            'missing_threshold_pct': f'{self.missing_threshold:.0%}',
+            'library_versions': library_versions,
+            'quickeda_version': quickeda_version,
+        }
+
+        # ── Render template ───────────────────────────────────────────────────
+        template_dir = os.path.join(os.path.dirname(__file__), 'templates')
+        env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(template_dir),
+            autoescape=jinja2.select_autoescape(['html']),
+        )
+        template = env.get_template('report.html')
+        rendered_html = template.render(**context)
+
+        # ── Save to disk ──────────────────────────────────────────────────────
+        output_dir = os.path.dirname(os.path.abspath(output_path))
+        os.makedirs(output_dir, exist_ok=True)
+
+        with open(output_path, 'w', encoding='utf-8') as fh:
+            fh.write(rendered_html)
+
+        logger.info(f"Report saved to: {os.path.abspath(output_path)}")
