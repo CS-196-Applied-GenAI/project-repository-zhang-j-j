@@ -1,0 +1,103 @@
+:root {
+    color-scheme: light;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f5f5f5;
+    color: #1f1f1f;
+}
+
+.container {
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 0 1rem 2rem;
+}
+
+.subtitle {
+    margin-top: 0;
+    color: #555;
+}
+
+.panel {
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+label {
+    display: block;
+    margin: 0.5rem 0 0.25rem;
+    font-weight: 600;
+}
+
+input,
+select,
+button,
+.button-link {
+    font: inherit;
+}
+
+input,
+select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.45rem;
+    border: 1px solid #bbb;
+    background: #fff;
+}
+
+button,
+.button-link {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.85rem;
+    border: 1px solid #999;
+    background: #efefef;
+    color: #111;
+    text-decoration: none;
+    cursor: pointer;
+    display: inline-block;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.actions {
+    margin-bottom: 0.75rem;
+}
+
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.spinner {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 50%;
+    background: #333;
+}
+
+iframe {
+    width: 100%;
+    height: 800px;
+    border: 1px solid #ddd;
+    background: #fff;
+}
+
+.error {
+    background: #fbe9e9;
+    border: 1px solid #e2a4a4;
+    color: #7a0000;
+    padding: 0.6rem;
+    margin-bottom: 1rem;
+}
+
+.hidden {
+    display: none;
+}

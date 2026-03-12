@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuickEDA Report – {{ dataset_name }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      font-size: 14px; line-height: 1.6; color: #2d2d2d; background: #f4f5fa;
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+      color: #fff; padding: 32px 0;
+    }
+    header .inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+    header h1 { font-size: 26px; letter-spacing: -0.3px; }
+    header .subtitle { opacity: 0.65; font-size: 12px; margin-top: 3px; }
+    header .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    header .meta .chip {
+      background: rgba(255,255,255,0.13); border-radius: 20px;
+      padding: 4px 12px; font-size: 12px; white-space: nowrap;
+    }
+    /* ── Sections ── */
+    section {
+      background: #fff; border-radius: 8px; padding: 24px;
+      margin-bottom: 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+    h2 {
+      font-size: 17px; color: #1a1a2e; margin-bottom: 14px;
+      padding-bottom: 8px; border-bottom: 2px solid #e4e7f5;
+    }
+    h3 { font-size: 14px; font-weight: 600; color: #444; margin: 18px 0 10px; }
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      background: #f0f2f9; padding: 8px 12px; text-align: left;
+      font-weight: 600; color: #555; border-bottom: 2px solid #dce0f0;
+    }
+    td { padding: 7px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #fafbff; }
+    /* ── Badges ── */
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .badge-green  { background: #d4edda; color: #155724; }
+    .badge-yellow { background: #fff3cd; color: #856404; }
+    .badge-red    { background: #f8d7da; color: #721c24; }
+    .badge-blue   { background: #cce5ff; color: #004085; }
+    /* ── Takeaways ── */
+    .insight-list { list-style: none; }
+    .insight-list li {
+      padding: 5px 0 5px 22px; position: relative; color: #2c3e50;
+    }
+    .insight-list li::before { content: "✓"; position: absolute; left: 0; color: #27ae60; font-weight: 700; }
+    .warning-list { list-style: none; margin-top: 4px; }
+    .warning-list li {
+      padding: 6px 10px 6px 30px; position: relative; color: #7a5800;
+      background: #fffdf0; border-left: 3px solid #f0ad4e;
+      border-radius: 0 4px 4px 0; margin: 4px 0;
+    }
+    .warning-list li::before { content: "⚠"; position: absolute; left: 8px; color: #f0ad4e; }
+    /* ── Plot grid ── */
+    .plot-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 14px; margin-top: 12px;
+    }
+    .plot-card {
+      border: 1px solid #e6e9f5; border-radius: 6px; overflow: hidden; background: #fafbff;
+    }
+    .plot-card img { width: 100%; display: block; }
+    .plot-card .plot-label {
+      padding: 5px 10px; font-size: 11px; color: #777;
+      text-align: center; background: #f4f5fa; border-top: 1px solid #e6e9f5;
+    }
+    /* ── Two-column layout ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+    /* ── Metrics cards ── */
+    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    @media (max-width: 650px) { .metrics-grid { grid-template-columns: 1fr; } }
+    .metrics-card { border: 1px solid #e0e4f4; border-radius: 6px; overflow: hidden; }
+    .metrics-card-header {
+      background: #f0f2f9; padding: 10px 14px;
+      font-weight: 600; font-size: 13px; color: #1a1a2e;
+    }
+    .split-header {
+      padding: 6px 14px 2px; font-size: 11px; color: #777; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.4px; background: #f9fafd;
+      border-top: 1px solid #eef0f8;
+    }
+    .metric-row {
+      display: flex; justify-content: space-between; padding: 7px 14px;
+      border-top: 1px solid #f0f0f0; font-size: 13px;
+    }
+    .metric-val { font-weight: 600; color: #1a1a2e; font-variant-numeric: tabular-nums; }
+    /* ── Correlation colours ── */
+    .corr-high { color: #c0392b; font-weight: 600; }
+    .corr-med  { color: #e67e22; }
+    /* ── Appendix ── */
+    .version-table td:first-child { font-weight: 600; color: #555; width: 180px; }
+    .version-table td:last-child  { font-family: monospace; font-size: 12px; }
+    /* ── Misc ── */
+    .note { font-size: 12px; color: #888; font-style: italic; margin-top: 8px; }
+    .center { text-align: center; }
+    .mt16 { margin-top: 16px; }
+    .mt20 { margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ HEADER ══════════════════════════════════ -->
+<header>
+  <div class="inner">
+    <h1>QuickEDA Report</h1>
+    <div class="subtitle">Generated {{ generated_at }}</div>
+    <div class="meta">
+      <span class="chip">📂 {{ dataset_name }}</span>
+      <span class="chip">📊 {{ n_rows_fmt }} rows × {{ n_cols }} columns</span>
+      {% if target %}<span class="chip">🎯 Target: {{ target }}</span>{% endif %}
+      {% if problem_type %}<span class="chip">🔬 {{ problem_type | title }}</span>{% endif %}
+      <span class="chip">🔢 {{ numeric_count }} numeric · {{ categorical_count }} categorical</span>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- ═══════════════════════════ KEY TAKEAWAYS ══════════════════════════════ -->
+<section id="takeaways">
+  <h2>Key Takeaways</h2>
+  {% if insights %}
+  <ul class="insight-list">
+    {% for item in insights %}<li>{{ item }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if warnings %}
+  <h3 class="mt16">Warnings</h3>
+  <ul class="warning-list">
+    {% for item in warnings %}<li>{{ item }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if not insights and not warnings %}
+  <p class="note">No insights or issues found.</p>
+  {% endif %}
+</section>
+
+<!-- ════════════════════════ DATASET OVERVIEW ══════════════════════════════ -->
+<section id="overview">
+  <h2>Dataset Overview</h2>
+  <table>
+    <tbody>
+      <tr><td><strong>Shape</strong></td><td>{{ n_rows_fmt }} rows × {{ n_cols }} columns</td></tr>
+      <tr><td><strong>Numeric Features</strong></td><td>{{ numeric_count }}</td></tr>
+      <tr><td><strong>Categorical Features</strong></td><td>{{ categorical_count }}</td></tr>
+      <tr><td><strong>Target Column</strong></td><td>{{ target if target else '— (unsupervised)' }}</td></tr>
+      <tr><td><strong>Problem Type</strong></td><td>{{ problem_type | title if problem_type else '—' }}</td></tr>
+      <tr>
+        <td><strong>Missing Values</strong></td>
+        <td>
+          {% if has_missing %}
+          <span class="badge badge-yellow">{{ missing_summary | length }} column(s)</span>
+          {% else %}
+          <span class="badge badge-green">None</span>
+          {% endif %}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════ DATA SUMMARY ════════════════════════════════ -->
+<section id="data-summary">
+  <h2>Data Summary</h2>
+
+  {% if has_missing %}
+  <h3>Missing Values</h3>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Column</th><th>Missing Count</th><th>Missing %</th><th>Suggested Handling</th></tr>
+    </thead>
+    <tbody>
+      {% for row in missing_summary %}
+      <tr>
+        <td><strong>{{ row.column }}</strong></td>
+        <td>{{ row.count_fmt }}</td>
+        <td>
+          {% if row.percentage >= 0.5 %}
+          <span class="badge badge-red">{{ row.pct_str }}</span>
+          {% elif row.percentage >= 0.2 %}
+          <span class="badge badge-yellow">{{ row.pct_str }}</span>
+          {% else %}
+          <span class="badge badge-blue">{{ row.pct_str }}</span>
+          {% endif %}
+        </td>
+        <td>{{ row.suggested_handling }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="note">✓ No missing values detected.</p>
+  {% endif %}
+
+  {% if numeric_stats %}
+  <h3 class="mt20">Numeric Feature Statistics</h3>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Feature</th><th>Mean</th><th>Median</th><th>Std Dev</th>
+        <th>Min</th><th>Max</th><th>Outliers (IQR)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in numeric_stats %}
+      <tr>
+        <td><strong>{{ row.feature }}</strong></td>
+        <td>{{ row.mean_str }}</td>
+        <td>{{ row.median_str }}</td>
+        <td>{{ row.std_str }}</td>
+        <td>{{ row.min_str }}</td>
+        <td>{{ row.max_str }}</td>
+        <td>
+          {% if row.outliers_iqr > 0 %}
+          <span class="badge badge-yellow">{{ row.outliers_iqr_fmt }} ({{ row.outliers_iqr_pct }})</span>
+          {% else %}
+          <span class="badge badge-green">0</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+
+  {% if categorical_stats %}
+  <h3 class="mt20">Categorical Feature Summary</h3>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Feature</th><th>Unique Values</th><th>Top Category</th><th>Top Count</th><th>Rare Categories</th></tr>
+    </thead>
+    <tbody>
+      {% for row in categorical_stats %}
+      <tr>
+        <td><strong>{{ row.feature }}</strong></td>
+        <td>{{ row.unique_count }}</td>
+        <td>{{ row.top_category }}</td>
+        <td>{{ row.top_count_fmt }}</td>
+        <td>
+          {% if row.rare_category_count > 0 %}
+          <span class="badge badge-yellow">{{ row.rare_category_count }}</span>
+          {% else %}
+          <span class="badge badge-green">0</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+
+<!-- ═══════════════════════ FEATURE DISTRIBUTIONS ═════════════════════════ -->
+{% if distribution_plots or categorical_plots %}
+<section id="distributions">
+  <h2>Feature Distributions</h2>
+  {% if distribution_plots %}
+  <h3>Numeric Features (top {{ distribution_plots | length }})</h3>
+  <div class="plot-grid">
+    {% for col, img in distribution_plots.items() %}
+    <div class="plot-card">
+      <img src="data:image/png;base64,{{ img }}" alt="Distribution – {{ col }}">
+      <div class="plot-label">{{ col }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if categorical_plots %}
+  <h3 class="mt20">Categorical Features (top {{ categorical_plots | length }})</h3>
+  <div class="plot-grid">
+    {% for col, img in categorical_plots.items() %}
+    <div class="plot-card">
+      <img src="data:image/png;base64,{{ img }}" alt="Value counts – {{ col }}">
+      <div class="plot-label">{{ col }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<!-- ════════════════════════ FEATURE RELATIONSHIPS ════════════════════════ -->
+<section id="relationships">
+  <h2>Feature Relationships</h2>
+
+  {% if target_corr_list %}
+  <h3>Correlations with Target: "{{ target }}"</h3>
+  <div class="two-col">
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Feature</th><th>Correlation</th></tr></thead>
+      <tbody>
+        {% for row in target_corr_list %}
+        <tr>
+          <td>{{ row.feature }}</td>
+          <td>
+            {% if row.abs_corr >= 0.5 %}
+            <span class="corr-high">{{ row.corr_str }}</span>
+            {% elif row.abs_corr >= 0.3 %}
+            <span class="corr-med">{{ row.corr_str }}</span>
+            {% else %}
+            {{ row.corr_str }}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <div>
+      {% if target_corr_plot %}
+      <img src="data:image/png;base64,{{ target_corr_plot }}" alt="Target correlations" style="width:100%">
+      {% endif %}
+    </div>
+  </div>
+  {% elif not target %}
+  <p class="note">No target column specified — supervised correlation analysis skipped.</p>
+  {% else %}
+  <p class="note">No numeric correlations could be computed.</p>
+  {% endif %}
+
+  {% if high_corr_list %}
+  <h3 class="mt20">High Predictor-Predictor Correlations (|r| &gt; 0.7)</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Feature 1</th><th>Feature 2</th><th>Correlation</th><th>Note</th></tr></thead>
+    <tbody>
+      {% for row in high_corr_list %}
+      <tr>
+        <td>{{ row.feature1 }}</td>
+        <td>{{ row.feature2 }}</td>
+        <td><span class="corr-high">{{ row.corr_str }}</span></td>
+        <td><span class="badge badge-yellow">Potential multicollinearity</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+
+  {% if correlation_heatmap %}
+  <h3 class="mt20">Correlation Heatmap</h3>
+  <div class="center">
+    <img src="data:image/png;base64,{{ correlation_heatmap }}"
+         alt="Correlation heatmap" style="max-width:700px; width:100%">
+  </div>
+  {% endif %}
+</section>
+
+<!-- ══════════════════════ BASELINE MODEL PERFORMANCE ═════════════════════ -->
+{% if has_models %}
+<section id="models">
+  <h2>Baseline Model Performance</h2>
+  <p class="note" style="margin-bottom:14px">
+    Train/test split: {{ train_split_pct }} / {{ test_split_pct }}.
+    Models trained with random seed {{ random_seed }}.
+    Numeric features scaled (StandardScaler) for linear model;
+    tree model uses raw preprocessed features.
+  </p>
+
+  <div class="metrics-grid">
+    {% if 'linear_model' in metrics %}
+    <div class="metrics-card">
+      <div class="metrics-card-header">
+        {% if problem_type == 'classification' %}Logistic Regression{% else %}Linear Regression{% endif %}
+      </div>
+      {% for split_key, split_label in [('train', 'Training Set'), ('test', 'Test Set')] %}
+      <div class="split-header">{{ split_label }}</div>
+      {% for mk, ml in [('accuracy','Accuracy'),('roc_auc','ROC-AUC'),('f1','F1 Score'),('rmse','RMSE'),('r2','R²')] %}
+      {% if mk in metrics['linear_model'][split_key] %}
+      <div class="metric-row">
+        <span>{{ ml }}</span>
+        <span class="metric-val">{{ "%.4f" | format(metrics['linear_model'][split_key][mk]) }}</span>
+      </div>
+      {% endif %}
+      {% endfor %}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if 'tree_model' in metrics %}
+    <div class="metrics-card">
+      <div class="metrics-card-header">
+        {% if problem_type == 'classification' %}Random Forest Classifier{% else %}Random Forest Regressor{% endif %}
+      </div>
+      {% for split_key, split_label in [('train', 'Training Set'), ('test', 'Test Set')] %}
+      <div class="split-header">{{ split_label }}</div>
+      {% for mk, ml in [('accuracy','Accuracy'),('roc_auc','ROC-AUC'),('f1','F1 Score'),('rmse','RMSE'),('r2','R²')] %}
+      {% if mk in metrics['tree_model'][split_key] %}
+      <div class="metric-row">
+        <span>{{ ml }}</span>
+        <span class="metric-val">{{ "%.4f" | format(metrics['tree_model'][split_key][mk]) }}</span>
+      </div>
+      {% endif %}
+      {% endfor %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if linear_fi_plot or tree_fi_plot %}
+  <h3 class="mt20">Feature Importance</h3>
+  <div class="two-col">
+    {% if linear_fi_plot %}
+    <div>
+      <img src="data:image/png;base64,{{ linear_fi_plot }}"
+           alt="Linear model feature importance" style="width:100%">
+    </div>
+    {% endif %}
+    {% if tree_fi_plot %}
+    <div>
+      <img src="data:image/png;base64,{{ tree_fi_plot }}"
+           alt="Tree model feature importance" style="width:100%">
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<!-- ══════════════════════════════ APPENDIX ════════════════════════════════ -->
+<section id="appendix">
+  <h2>Appendix</h2>
+  <div class="two-col">
+    <div>
+      <h3>Reproducibility</h3>
+      <table class="version-table">
+        <tbody>
+          <tr><td>Random Seed</td><td>{{ random_seed }}</td></tr>
+          <tr><td>Train / Test Split</td><td>{{ train_split_pct }} / {{ test_split_pct }}</td></tr>
+          <tr><td>Target Column</td><td>{{ target if target else '—' }}</td></tr>
+          <tr><td>Problem Type</td><td>{{ problem_type | title if problem_type else '—' }}</td></tr>
+          <tr><td>Missing Threshold</td><td>{{ missing_threshold_pct }}</td></tr>
+          <tr><td>Numeric Imputation</td><td>Median</td></tr>
+          <tr><td>Categorical Imputation</td><td>Most frequent</td></tr>
+          <tr><td>Categorical Encoding</td><td>One-hot encoding</td></tr>
+          <tr><td>Linear Model Scaling</td><td>StandardScaler</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Library Versions</h3>
+      <table class="version-table">
+        <tbody>
+          {% for lib, ver in library_versions.items() %}
+          <tr><td>{{ lib }}</td><td>{{ ver }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <p class="note mt16">
+    Report generated with QuickEDA v{{ quickeda_version }} on {{ generated_at }}.
+  </p>
+</section>
+
+</div><!-- /container -->
+</body>
+</html>
